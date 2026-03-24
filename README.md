@@ -15,9 +15,11 @@ Zero Dependencies: A standalone Bash script that requires no external packages (
 Copy and paste this block to download the script and set the correct permissions:
 
 Download the script from the official repository
+
 $ curl -O https://raw.githubusercontent.com/arielesfahani/chinvat/main/chinvat.sh
 
 Grant execution permissions
+
 $ chmod +x chinvat.sh
 
 ### 2. Launch the Bridge
@@ -26,6 +28,7 @@ Run the script as root. You must specify a Listening Port and a Target Resolver 
 Note: the resolver 2.188.21.20 is currently recommended.
 
 Usage: sudo ./chinvat.sh <PORT> <RESOLVER_IP>
+
 $ sudo ./chinvat.sh 443 2.188.21.20
 
 ### 3. Client-Side Configuration
@@ -40,12 +43,14 @@ Resolver Port: 443 (or the port you chose)
 To verify that packets are being correctly relayed through the bridge, check the NAT table statistics:
 
 View active NAT rules and packet counts
+
 $ sudo iptables -t nat -L -n -v
 
 ### Emergency Cleanup
 If you need to reset your server's network rules and remove all Chinvat configurations:
 
 Flush all Chinvat-related NAT rules
+
 $ sudo ./chinvat.sh --clean
 
 ## ⚠️ Critical Warnings
