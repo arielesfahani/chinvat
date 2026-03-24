@@ -17,12 +17,12 @@ Copy and paste this block to download the script and set the correct permissions
 Download the script from the official repository
 
 ```bash
-$ curl -O https://raw.githubusercontent.com/arielesfahani/chinvat/main/chinvat.sh
+curl -O https://raw.githubusercontent.com/arielesfahani/chinvat/main/chinvat.sh
 ```
 Grant execution permissions
 
 ```bash
-$ chmod +x chinvat.sh
+chmod +x chinvat.sh
 ```
 ### 2. Launch the Bridge
 Run the script as root. You must specify a Listening Port and a Target Resolver IP.
@@ -32,7 +32,7 @@ Note: the resolver 2.188.21.20 is currently recommended.
 Usage: sudo ./chinvat.sh <PORT> <RESOLVER_IP>
 
 ```bash
-$ sudo ./chinvat.sh 443 2.188.21.20
+sudo ./chinvat.sh 443 2.188.21.20
 ```
 ### 3. Client-Side Configuration
 Update your SlipNet or DNSTT client with the following parameters:
@@ -48,7 +48,7 @@ To verify that packets are being correctly relayed through the bridge, check the
 View active NAT rules and packet counts
 
 ```bash
-$ sudo iptables -t nat -L -n -v
+sudo iptables -t nat -L -n -v
 ```
 ### Emergency Cleanup
 If you need to reset your server's network rules and remove all Chinvat configurations:
@@ -56,7 +56,7 @@ If you need to reset your server's network rules and remove all Chinvat configur
 Flush all Chinvat-related NAT rules
 
 ```bash
-$ sudo ./chinvat.sh --clean
+sudo ./chinvat.sh --clean
 ```
 ## ⚠️ Critical Warnings
 Cloud Firewalls: Ensure that Port 2053 (or your chosen port) is open for both UDP and TCP in your VPS provider's dashboard (e.g., ArvanCloud, or ParsPack).
