@@ -1,0 +1,16 @@
+# System junk
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs and Temps (Crucial to not leak your tunnel logs)
+*.log
+*.tmp
+*.temp
+/etc/iptables/rules.v4.bak
+
+# Local dev files
+.vscode/
+.idea/
+*.swp
+*~
