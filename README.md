@@ -36,8 +36,11 @@ sudo ./chinvat.sh 443 2.188.21.20
 Update your SlipNet or DNSTT client with the following parameters:
 
 DNS Transport: UDP
+
 DNS Resolver IP: YOUR_IRAN_VPS_IP
+
 Resolver Port: 443 (or the port you chose)
+
 
 ## 🧹 Maintenance & Monitoring
 ### Monitor Traffic Flow
