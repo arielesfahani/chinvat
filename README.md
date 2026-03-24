@@ -27,8 +27,6 @@ chmod +x chinvat.sh
 ### 2. Launch the Bridge
 Run the script as root. You must specify a Listening Port and a Target Resolver IP.
 
-Note: the resolver 2.188.21.20 is currently recommended.
-
 Usage: sudo ./chinvat.sh <PORT> <RESOLVER_IP>
 
 ```bash
