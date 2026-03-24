@@ -17,8 +17,8 @@ Copy and paste this block to download the script and set the correct permissions
 Download the script from the official repository
 
 ```bash
-$ curl -O https://raw.githubusercontent.com/arielesfahani/chinvat/main/chinvat.sh```
-
+$ curl -O https://raw.githubusercontent.com/arielesfahani/chinvat/main/chinvat.sh
+```
 Grant execution permissions
 
 $ chmod +x chinvat.sh
