@@ -3,42 +3,39 @@
 # =================================================================
 # Project: CHINVAT (پل چینود)
 # Description: DNS Bridge Relay for High-Censorship Environments
-# License: GNU GPL v3.0
-# Version: 1.1 (Auto-Overwrite Fix)
+# Version: 1.3 (Isolated Chain Edition)
 # =================================================================
 
 GREEN='\033[0;32m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-show_help() {
-    echo -e "${GREEN}CHINVAT - The Bridge of Judgment (DNS Relay)${NC}"
-    echo "Usage: sudo ./chinvat.sh <PORT> <RESOLVER_IP>"
-    echo "Options:"
-    echo "  --clean    Remove all Chinvat iptables rules and reset NAT"
-    echo ""
-    echo "Example: sudo ./chinvat.sh 2053 2.188.21.20"
-}
-
-cleanup_rules() {
-    echo -e "${RED}[!] Crossing back: Flushing NAT table...${NC}"
-    iptables -t nat -F
-    iptables -t nat -X
-    echo "Done. Rules cleared."
-    exit 0
-}
-
-if [[ "$1" == "--clean" ]]; then
-    cleanup_rules
-fi
-
+# Check for root
 if [[ $EUID -ne 0 ]]; then
    echo -e "${RED}Error: Run as root (sudo).${NC}"
    exit 1
 fi
 
+# Cleanup function
+cleanup_all() {
+    echo -e "${RED}[!] Tearing down the Chinvat Bridge...${NC}"
+    # Remove the jump rule from PREROUTING
+    iptables -t nat -D PREROUTING -j CHINVAT 2>/dev/null
+    # Flush and delete the custom chain
+    iptables -t nat -F CHINVAT 2>/dev/null
+    iptables -t nat -X CHINVAT 2>/dev/null
+    # Flush POSTROUTING for a clean slate
+    iptables -t nat -F POSTROUTING 2>/dev/null
+    echo "Done. All rules cleared."
+    exit 0
+}
+
+if [[ "$1" == "--clean" ]]; then
+    cleanup_all
+fi
+
 if [ "$#" -ne 2 ]; then
-    show_help
+    echo -e "${GREEN}Usage:${NC} sudo ./chinvat.sh <PORT> <RESOLVER_IP>"
     exit 1
 fi
 
@@ -50,29 +47,34 @@ echo -e "${GREEN}[*] Raising the Chinvat Bridge...${NC}"
 # 1. Enable Forwarding
 sysctl -w net.ipv4.ip_forward=1 > /dev/null
 
-# 2. Cleanup existing rules for THIS PORT to avoid duplicates
-# We delete existing DNAT and MASQUERADE rules for this port/resolver before adding new ones
-iptables -t nat -D PREROUTING -p udp --dport "$PORT" -j DNAT --to-destination "$RESOLVER":53 2>/dev/null
-iptables -t nat -D PREROUTING -p tcp --dport "$PORT" -j DNAT --to-destination "$RESOLVER":53 2>/dev/null
-# Note: Full cleanup is safer, so we flush the specific PREROUTING chain if needed, 
-# but for now, let's just use -I (Insert) instead of -A (Append) at the top.
+# 2. Create/Reset the CHINVAT Chain
+# This ensures we NEVER have duplicate or old rules.
+iptables -t nat -N CHINVAT 2>/dev/null
+iptables -t nat -F CHINVAT
+iptables -t nat -F POSTROUTING
 
-# 3. Apply NAT Rules (Using -I to put them at the top of the list)
-iptables -t nat -I PREROUTING -p udp --dport "$PORT" -j DNAT --to-destination "$RESOLVER":53
-iptables -t nat -I PREROUTING -p tcp --dport "$PORT" -j DNAT --to-destination "$RESOLVER":53
-iptables -t nat -I POSTROUTING -p udp -d "$RESOLVER" --dport 53 -j MASQUERADE
-iptables -t nat -I POSTROUTING -p tcp -d "$RESOLVER" --dport 53 -j MASQUERADE
+# 3. Ensure PREROUTING jumps to our CHINVAT chain
+# We use -C to check if the jump rule exists, if not, we add it.
+iptables -t nat -C PREROUTING -j CHINVAT 2>/dev/null || iptables -t nat -I PREROUTING 1 -j CHINVAT
 
-# 4. Open Traffic (Using -I to ensure they are high priority)
+# 4. Apply the Relay Rules to the CHINVAT Chain
+iptables -t nat -A CHINVAT -p udp --dport "$PORT" -j DNAT --to-destination "$RESOLVER":53
+iptables -t nat -A CHINVAT -p tcp --dport "$PORT" -j DNAT --to-destination "$RESOLVER":53
+
+# 5. Apply Masquerade
+iptables -t nat -A POSTROUTING -p udp -d "$RESOLVER" --dport 53 -j MASQUERADE
+iptables -t nat -A POSTROUTING -p tcp -d "$RESOLVER" --dport 53 -j MASQUERADE
+
+# 6. Open Traffic in Forward Table
 iptables -I FORWARD -p udp --dport 53 -j ACCEPT
 iptables -I FORWARD -p tcp --dport 53 -j ACCEPT
 iptables -I FORWARD -m state --state RELATED,ESTABLISHED -j ACCEPT
 
-# 5. Persistence (Manual Save)
+# 7. Persistence
 mkdir -p /etc/iptables/
 iptables-save > /etc/iptables/rules.v4
 
 echo -e "${GREEN}====================================================${NC}"
-echo -e "CHINVAT IS WIDE: Port $PORT -> $RESOLVER"
-echo -e "Rules have been updated/refreshed."
+echo -e "CHINVAT IS ACTIVE: Port $PORT -> $RESOLVER"
+echo -e "Check status with: ${GREEN}sudo iptables -t nat -L CHINVAT -n -v${NC}"
 echo -e "====================================================${NC}"
