@@ -2,25 +2,67 @@
 
 ## 🛡️ Chinvat (پل چینود)
 
+A DNS bridge relay for high-censorship environments. Routes DNS tunnel traffic through Iranian datacenter backbone networks to bypass ISP-level port poisoning and resolver sabotage.
+
+Built as the entry-point relay for [SlipNet](https://github.com/anonvector/SlipNet) and [DNSTT](https://github.com/netsec-ethz/dnstt)-based tunnels.
+
 ---
 
-## 🚀 Why Chinvat?
+## 🚀 The Problem Chinvat Solves
 
-Chinvat is a high-performance DNS bridge relay designed to bypass DNS poisoning and protocol sabotage in high-censorship environments. Named after the mythological bridge that sifts the light from the dark, it provides a clean entry point for DNS-based tunnels like SlipNet, DNSTT, and Slipstream.
+During digital blackouts in Iran, ISPs enforce censorship on two layers simultaneously:
 
-During digital blackouts, ISPs often poison public resolvers (like 8.8.8.8) or sabotage encrypted handshakes on Port 53. Chinvat solves this by:
+- **Port 53 is poisoned** on consumer lines — public resolvers like `8.8.8.8` and `1.1.1.1` are unreachable or return forged responses
+- **Encrypted handshakes are sabotaged** — DoH and DoT traffic on port 443 or 853 is fingerprinted and dropped
+- **Foreign resolvers don't respond** — E2E scanning tools (Naive Proxy, Prism, v4) return zero working results because the poisoning is at the ISP routing layer, not the resolver itself
 
-- **Port Camouflage:** Moves your DNS traffic from Port 53 to a stealth port (e.g., 443, 2053, or 8443) that ISPs treat as normal web traffic.
-- **Backbone Routing:** Bridges your connection through domestic data center networks (Intranet), which are rarely subjected to the same recursive poisoning as consumer lines.
-- **Zero Dependencies:** A standalone Bash script that requires no external packages (apt, yum, etc.) — essential for servers that cannot reach global update mirrors.
+The natural assumption is that *if resolvers don't respond, the tunnel is dead.* But the poisoning is **not uniform across all networks.** Consumer ISP lines are heavily filtered. Iranian datacenter backbone networks are not.
+
+### Why Datacenter Networks Are Different
+
+Iranian data centers sit on the **National Information Network (NIN) backbone**, which operates under different routing rules than consumer ISP lines. During partial or selective blackouts, this backbone retains upstream DNS access while consumer lines are cut off. This is also why Iranian resolvers served by data centers can still resolve foreign DNSTT domains (like `t.yourdomain.com`) — the NIN is selectively filtering, not in full isolation.
+
+Chinvat exploits this gap.
+
+---
+
+## 🗺️ How It Works
+
+Without Chinvat, your tunnel traffic takes the poisoned path:
+```
+Your Device ──► Port 53 (ISP line) ──► ✗ POISONED ──► Foreign Resolver
+```
+
+With Chinvat running on an Iranian VPS:
+```
+Your Device
+    │
+    │  DNS tunnel packets to port 443
+    │  (looks like HTTPS to the ISP)
+    ▼
+Iranian VPS  ◄──── Chinvat intercepts here
+    │
+    │  DNAT: silently redirects to Iranian Resolver on port 53
+    │  MASQUERADE: hides origin, traffic appears local to the VPS
+    ▼
+Iranian Resolver (datacenter backbone)
+    │
+    │  Resolves t.yourdomain.com cleanly
+    ▼
+DNSTT Tunnel ──► Internet
+```
+
+**Three things make this work:**
+
+- **Port Camouflage** — Your DNS traffic moves from port 53 to a stealth port (443, 2053, or 8443) that the ISP treats as normal web traffic
+- **Backbone Routing** — The VPS sits on datacenter infrastructure that is not subject to the same recursive poisoning as consumer lines
+- **Zero Dependencies** — A standalone Bash script with no external packages required, essential for servers that cannot reach global update mirrors during a blackout
 
 ---
 
 ## 🛠️ Installation & Usage
 
 ### 1. Download & Prepare
-
-Copy and paste this block to download the script and set the correct permissions:
 ```bash
 # Download the script from the official repository
 curl -O https://raw.githubusercontent.com/arielesfahani/chinvat/main/chinvat.sh
@@ -32,7 +74,7 @@ chmod +x chinvat.sh
 
 ### 2. Launch the Bridge
 
-Run the script as root. You must specify a Listening Port and a Target Resolver IP.
+Run the script as root. Specify a Listening Port and a Target Resolver IP.
 ```
 Usage: sudo ./chinvat.sh <PORT> <RESOLVER_IP>
 ```
@@ -40,15 +82,31 @@ Usage: sudo ./chinvat.sh <PORT> <RESOLVER_IP>
 sudo ./chinvat.sh 443 2.188.21.20
 ```
 
-### 3. Client-Side Configuration
+Chinvat will create an isolated `CHINVAT` chain in iptables, apply DNAT and MASQUERADE rules for the specified port, and save the configuration automatically to `/etc/iptables/rules.v4`.
+
+### 3. Multi-Bridge Mode
+
+You can run multiple bridges simultaneously — different ports pointing to different resolvers — without affecting existing rules. Each invocation only modifies rules for the port you specify:
+```bash
+sudo ./chinvat.sh 443 2.188.21.20
+sudo ./chinvat.sh 2053 10.10.10.5
+sudo ./chinvat.sh 8443 185.55.225.25
+```
+
+All bridges remain active in parallel. To see all running bridges:
+```bash
+sudo iptables -t nat -L CHINVAT -n -v
+```
+
+### 4. Client-Side Configuration
 
 Update your SlipNet or DNSTT client with the following parameters:
 
-| Parameter        | Value                            |
-|------------------|----------------------------------|
-| DNS Transport    | UDP                              |
-| DNS Resolver IP  | `YOUR_IRAN_VPS_IP`               |
-| Resolver Port    | `443` *(or the port you chose)*  |
+| Parameter       | Value                           |
+|-----------------|---------------------------------|
+| DNS Transport   | UDP                             |
+| DNS Resolver IP | `YOUR_IRAN_VPS_IP`              |
+| Resolver Port   | `443` *(or the port you chose)* |
 
 ---
 
@@ -56,7 +114,7 @@ Update your SlipNet or DNSTT client with the following parameters:
 
 ### Monitor Traffic Flow
 
-Chinvat uses an isolated chain, you can monitor your DNS traffic without seeing the rest of the server's noise:
+Chinvat uses an isolated chain, so you can monitor your DNS bridge traffic without noise from the rest of the server:
 ```bash
 # View only Chinvat-specific traffic and packet counts
 sudo iptables -t nat -L CHINVAT -n -v
@@ -64,9 +122,8 @@ sudo iptables -t nat -L CHINVAT -n -v
 
 ### Emergency Cleanup
 
-If you need to reset your server's network rules and remove all Chinvat configurations:
+To remove all Chinvat bridges and reset the NAT rules:
 ```bash
-# Flush all Chinvat-related NAT rules
 sudo ./chinvat.sh --clean
 ```
 
@@ -74,11 +131,13 @@ sudo ./chinvat.sh --clean
 
 ## ⚠️ Critical Warnings
 
-> **Cloud Firewalls:** Ensure that Port 2053 (or your chosen port) is open for both UDP and TCP in your VPS provider's dashboard (e.g., ArvanCloud, or ParsPack).
+> **Cloud Firewalls:** Ensure that your chosen port is open for both UDP and TCP in your VPS provider's firewall dashboard (e.g., ArvanCloud, ParsPack). The iptables rules alone are not enough if the provider-level firewall blocks the port upstream.
 
-> **Port Conflicts:** If you are running x-ui or Xray, avoid using Port 443. We recommend 2053, 2083, or 8443 (if 443 is not available).
+> **Port Conflicts:** If you are running x-ui or Xray on the same server, avoid port 443. Use 2053, 2083, or 8443 instead.
 
-> **Persistence:** This script is designed to be lightweight. If you reboot your server, simply re-run the launch command to restore the bridge.
+> **Persistence:** Chinvat saves rules to `/etc/iptables/rules.v4` on every run. If `iptables-persistent` is installed on your server, bridges will survive reboots automatically. Otherwise, re-run the launch command after a reboot.
+
+> **Resolver Selection:** During active blackouts, foreign resolvers (8.8.8.8, 1.1.1.1) will not respond even from a VPS. Use Iranian resolvers served by datacenter infrastructure. If you are unsure whether a resolver is working, the fact that your DNSTT domain resolves at all confirms the NIN is in selective — not total — isolation mode.
 
 ---
 
