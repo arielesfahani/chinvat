@@ -56,10 +56,10 @@ Update your SlipNet or DNSTT client with the following parameters:
 
 ### Monitor Traffic Flow
 
-To verify that packets are being correctly relayed through the bridge, check the NAT table statistics:
+Chinvat uses an isolated chain, you can monitor your DNS traffic without seeing the rest of the server's noise:
 ```bash
-# View active NAT rules and packet counts
-sudo iptables -t nat -L -n -v
+# View only Chinvat-specific traffic and packet counts
+sudo iptables -t nat -L CHINVAT -n -v
 ```
 
 ### Emergency Cleanup
